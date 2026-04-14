@@ -1,6 +1,7 @@
 import json
 import webbrowser
 import tkinter as tk
+import tkinter.font as tkfont
 from tkinter import ttk, messagebox
 
 from extract import extract_jobs_from_data
@@ -10,89 +11,256 @@ class LinkedInExtractorGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("LinkedIn Job JSON Extractor")
-        self.root.geometry("1200x760")
+        self.root.geometry("1280x900")
+        self.root.minsize(960, 680)
 
         self.rows = []
         self.display_rows = []
         self.sort_column = None
         self.sort_desc = False
 
+        self._fonts = self._detect_ui_fonts()
+        self._configure_styles()
         self._build_ui()
 
+    def _detect_ui_fonts(self):
+        families = set(tkfont.families())
+        ui = "Segoe UI" if "Segoe UI" in families else "Tahoma"
+        if "Cascadia Mono" in families:
+            mono = "Cascadia Mono"
+        elif "Consolas" in families:
+            mono = "Consolas"
+        else:
+            mono = "Courier New"
+        return {
+            "ui": ui,
+            "mono": mono,
+            "body": (ui, 10),
+            "small": (ui, 9),
+            "title": (ui, 15, "bold"),
+            "subtitle": (ui, 10),
+        }
+
+    def _configure_styles(self):
+        c = {
+            "accent": "#0a66c2",
+            "accent_dark": "#004182",
+            "bg": "#eef2f6",
+            "card": "#ffffff",
+            "text": "#1d2226",
+            "muted": "#5c6c7c",
+            "border": "#c3d0e3",
+            "toolbar": "#e4ebf4",
+            "heading": "#e8eef6",
+            "select_soft": "#bfdbfe",
+        }
+        self._colors = c
+        self.root.configure(background=c["bg"])
+
+        style = ttk.Style(self.root)
+        try:
+            style.theme_use("clam")
+        except tk.TclError:
+            pass
+
+        f = self._fonts
+        style.configure(".", background=c["bg"], foreground=c["text"], font=f["body"])
+        style.configure("App.TFrame", background=c["bg"])
+        style.configure("Card.TFrame", background=c["card"])
+        style.configure("Card.TLabelframe", background=c["card"], foreground=c["accent_dark"])
+        style.configure(
+            "Card.TLabelframe.Label",
+            background=c["card"],
+            foreground=c["accent_dark"],
+            font=(f["ui"], 10, "bold"),
+        )
+        style.configure("Toolbar.TFrame", background=c["toolbar"])
+        style.configure("Toolbar.TLabel", background=c["toolbar"], foreground=c["muted"], font=f["small"])
+        style.configure("ToolbarStrong.TLabel", background=c["toolbar"], foreground=c["text"], font=f["body"])
+        style.configure(
+            "CardStrong.TLabel",
+            background=c["card"],
+            foreground=c["text"],
+            font=(f["ui"], 9, "bold"),
+        )
+        style.configure("CardHint.TLabel", background=c["card"], foreground=c["muted"], font=f["small"])
+
+        style.configure(
+            "Accent.TButton",
+            background=c["accent"],
+            foreground="#ffffff",
+            font=(f["ui"], 10, "bold"),
+            padding=(18, 9),
+        )
+        style.map("Accent.TButton", background=[("active", c["accent_dark"]), ("disabled", "#94a3b8")])
+
+        style.configure(
+            "Ghost.TButton",
+            background="#f8fafc",
+            foreground=c["text"],
+            padding=(14, 8),
+        )
+        style.map("Ghost.TButton", background=[("active", "#e2e8f0")])
+
+        style.configure(
+            "Secondary.TButton",
+            background="#ffffff",
+            foreground=c["accent"],
+            padding=(14, 8),
+        )
+        style.map("Secondary.TButton", background=[("active", "#eff6ff")])
+
+        style.configure(
+            "Treeview",
+            background=c["card"],
+            fieldbackground=c["card"],
+            foreground=c["text"],
+            font=f["small"],
+            rowheight=24,
+        )
+        style.configure(
+            "Treeview.Heading",
+            background=c["heading"],
+            foreground="#334155",
+            font=(f["ui"], 9, "bold"),
+            relief="flat",
+        )
+        style.map("Treeview.Heading", background=[("active", "#dde6f2")])
+        style.map(
+            "Treeview",
+            background=[("selected", c["select_soft"])],
+            foreground=[("selected", c["text"])],
+        )
+
     def _build_ui(self):
-        main = ttk.Frame(self.root, padding=10)
+        outer = ttk.Frame(self.root, style="App.TFrame", padding=0)
+        outer.pack(fill=tk.BOTH, expand=True)
+
+        header = tk.Frame(outer, bg=self._colors["accent"], height=56)
+        header.pack(fill=tk.X)
+        header.pack_propagate(False)
+        tk.Label(
+            header,
+            text="LinkedIn Job JSON Extractor",
+            bg=self._colors["accent"],
+            fg="#ffffff",
+            font=self._fonts["title"],
+        ).pack(side=tk.LEFT, padx=(20, 6), pady=12)
+        tk.Label(
+            header,
+            text="Paste payloads · extract & merge · filter · sort · open apply links",
+            bg=self._colors["accent"],
+            fg="#c8ddf5",
+            font=self._fonts["subtitle"],
+        ).pack(side=tk.LEFT, pady=12)
+
+        main = ttk.Frame(outer, style="App.TFrame", padding=(18, 14))
         main.pack(fill=tk.BOTH, expand=True)
 
-        input_frame = ttk.LabelFrame(main, text="Input LinkedIn JSON")
-        input_frame.pack(fill=tk.BOTH, expand=False)
+        input_frame = ttk.LabelFrame(main, text="Input LinkedIn JSON", style="Card.TLabelframe", padding=2)
+        input_frame.pack(fill=tk.X, expand=False, pady=(0, 8))
 
-        self.json_text = tk.Text(input_frame, height=14, wrap=tk.WORD)
-        self.json_text.pack(fill=tk.BOTH, expand=True, padx=8, pady=8)
+        text_opts = {
+            "font": (self._fonts["mono"], 10),
+            "bg": "#f8fafc",
+            "fg": self._colors["text"],
+            "relief": tk.FLAT,
+            "bd": 0,
+            "highlightthickness": 1,
+            "highlightbackground": self._colors["border"],
+            "highlightcolor": self._colors["accent"],
+            "padx": 12,
+            "pady": 10,
+            "insertbackground": self._colors["accent"],
+            "selectbackground": self._colors["select_soft"],
+            "selectforeground": self._colors["text"],
+        }
+        self.json_text = tk.Text(input_frame, height=6, wrap=tk.WORD, **text_opts)
+        self.json_text.pack(fill=tk.X, expand=False, padx=10, pady=(4, 8))
 
-        controls = ttk.Frame(main)
-        controls.pack(fill=tk.X, pady=(8, 8))
+        controls = ttk.Frame(main, style="Toolbar.TFrame", padding=(10, 8))
+        controls.pack(fill=tk.X, pady=(0, 8))
 
-        self.extract_btn = ttk.Button(controls, text="Extract", command=self.on_extract)
+        self.extract_btn = ttk.Button(controls, text="Extract", command=self.on_extract, style="Accent.TButton")
         self.extract_btn.pack(side=tk.LEFT)
 
-        ttk.Button(controls, text="Clear", command=self.on_clear).pack(side=tk.LEFT, padx=(8, 0))
+        ttk.Button(controls, text="Clear", command=self.on_clear, style="Ghost.TButton").pack(side=tk.LEFT, padx=(10, 0))
 
         self.status_var = tk.StringVar(
             value="Paste LinkedIn JSON and click Extract. Extract again to append new jobs (duplicates skipped)."
         )
-        ttk.Label(controls, textvariable=self.status_var).pack(side=tk.LEFT, padx=(12, 0))
+        ttk.Label(controls, textvariable=self.status_var, style="ToolbarStrong.TLabel").pack(
+            side=tk.LEFT, padx=(16, 0), fill=tk.X, expand=True
+        )
 
-        filters = ttk.LabelFrame(main, text="Filters")
+        filters = ttk.LabelFrame(main, text="Filters · Ctrl/Shift multi-select", style="Card.TLabelframe", padding=2)
         filters.pack(fill=tk.X, expand=False, pady=(0, 8))
+        for col in range(4):
+            filters.columnconfigure(col, weight=1, uniform="filters")
 
-        ttk.Label(filters, text="Apply Type (multi-select)").grid(row=0, column=0, padx=(8, 4), pady=(8, 0), sticky="nw")
-        self.apply_type_list = tk.Listbox(
-            filters,
-            height=5,
-            selectmode=tk.EXTENDED,
-            exportselection=False,
+        lb_opts = {
+            "height": 3,
+            "selectmode": tk.EXTENDED,
+            "exportselection": False,
+            "font": self._fonts["body"],
+            "bg": self._colors["card"],
+            "fg": self._colors["text"],
+            "selectbackground": self._colors["accent"],
+            "selectforeground": "#ffffff",
+            "activestyle": "none",
+            "highlightthickness": 1,
+            "highlightbackground": self._colors["border"],
+            "highlightcolor": self._colors["accent"],
+            "relief": tk.FLAT,
+            "bd": 0,
+        }
+
+        ttk.Label(filters, text="Apply type", style="CardStrong.TLabel").grid(
+            row=0, column=0, padx=(12, 6), pady=(6, 2), sticky="w"
         )
-        self.apply_type_list.grid(row=1, column=0, padx=(8, 4), pady=(0, 8), sticky="nw")
+        self.apply_type_list = tk.Listbox(filters, **lb_opts)
+        self.apply_type_list.grid(row=1, column=0, padx=(12, 6), pady=(0, 8), sticky="nsew")
 
-        ttk.Label(filters, text="Job Type (multi-select)").grid(row=0, column=1, padx=(8, 4), pady=(8, 0), sticky="nw")
-        self.job_type_list = tk.Listbox(
-            filters,
-            height=5,
-            selectmode=tk.EXTENDED,
-            exportselection=False,
+        ttk.Label(filters, text="Job type", style="CardStrong.TLabel").grid(
+            row=0, column=1, padx=(6, 6), pady=(6, 2), sticky="w"
         )
-        self.job_type_list.grid(row=1, column=1, padx=(8, 4), pady=(0, 8), sticky="nw")
+        self.job_type_list = tk.Listbox(filters, **lb_opts)
+        self.job_type_list.grid(row=1, column=1, padx=(6, 6), pady=(0, 8), sticky="nsew")
 
-        ttk.Label(filters, text="Reposted (multi-select)").grid(row=0, column=2, padx=(8, 4), pady=(8, 0), sticky="nw")
-        self.reposted_list = tk.Listbox(
-            filters,
-            height=5,
-            selectmode=tk.EXTENDED,
-            exportselection=False,
+        ttk.Label(filters, text="Reposted", style="CardStrong.TLabel").grid(
+            row=0, column=2, padx=(6, 6), pady=(6, 2), sticky="w"
         )
-        self.reposted_list.grid(row=1, column=2, padx=(8, 4), pady=(0, 8), sticky="nw")
+        self.reposted_list = tk.Listbox(filters, **lb_opts)
+        self.reposted_list.grid(row=1, column=2, padx=(6, 6), pady=(0, 8), sticky="nsew")
 
-        ttk.Label(filters, text="Applied (multi-select)").grid(row=0, column=3, padx=(8, 4), pady=(8, 0), sticky="nw")
-        self.applied_list = tk.Listbox(
-            filters,
-            height=5,
-            selectmode=tk.EXTENDED,
-            exportselection=False,
+        ttk.Label(filters, text="Applied", style="CardStrong.TLabel").grid(
+            row=0, column=3, padx=(6, 6), pady=(6, 2), sticky="w"
         )
-        self.applied_list.grid(row=1, column=3, padx=(8, 4), pady=(0, 8), sticky="nw")
+        self.applied_list = tk.Listbox(filters, **lb_opts)
+        self.applied_list.grid(row=1, column=3, padx=(6, 6), pady=(0, 8), sticky="nsew")
 
-        ttk.Button(filters, text="Apply Filters", command=self.apply_filters).grid(
-            row=1, column=4, padx=(12, 4), pady=(0, 8), sticky="nw"
+        filter_btns = ttk.Frame(filters, style="Card.TFrame")
+        filter_btns.grid(row=0, column=4, rowspan=2, padx=(10, 12), pady=6, sticky="ne")
+        ttk.Button(filter_btns, text="Apply filters", command=self.apply_filters, style="Secondary.TButton").pack(
+            anchor="e", pady=(0, 6)
         )
-        ttk.Button(filters, text="Reset", command=self.reset_filters).grid(
-            row=1, column=5, padx=(0, 8), pady=(0, 8), sticky="nw"
+        ttk.Button(filter_btns, text="Reset", command=self.reset_filters, style="Ghost.TButton").pack(anchor="e")
+
+        output_frame = ttk.LabelFrame(
+            main,
+            text="Job list — drag the divider to resize vs. JSON details",
+            style="Card.TLabelframe",
+            padding=2,
         )
+        output_frame.pack(fill=tk.BOTH, expand=True, pady=(2, 0))
 
-        output_frame = ttk.LabelFrame(main, text="Extracted Jobs")
-        output_frame.pack(fill=tk.BOTH, expand=True)
+        output_inner = ttk.Frame(output_frame, style="Card.TFrame", padding=(8, 8, 8, 10))
+        output_inner.pack(fill=tk.BOTH, expand=True)
 
-        table_wrap = ttk.Frame(output_frame)
-        table_wrap.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(8, 4), pady=8)
+        paned = ttk.Panedwindow(output_inner, orient=tk.HORIZONTAL)
+        paned.pack(fill=tk.BOTH, expand=True)
+
+        table_wrap = ttk.Frame(paned, style="Card.TFrame")
         table_wrap.grid_rowconfigure(0, weight=1)
         table_wrap.grid_columnconfigure(0, weight=1)
 
@@ -113,7 +281,7 @@ class LinkedInExtractorGUI:
             table_wrap,
             columns=self.table_columns,
             show="headings",
-            height=20,
+            height=28,
         )
         self.jobs_table.grid(row=0, column=0, sticky="nsew")
         self.jobs_table.bind("<<TreeviewSelect>>", self.on_select_job)
@@ -148,9 +316,9 @@ class LinkedInExtractorGUI:
         self.jobs_table.column("apply_url", width=260, anchor=tk.W)
 
         # Row color coding by job type for quick scanning.
-        self.jobs_table.tag_configure("remote", background="#e9f7ef")
-        self.jobs_table.tag_configure("hybrid", background="#eaf2ff")
-        self.jobs_table.tag_configure("onsite", background="#fff3e6")
+        self.jobs_table.tag_configure("remote", background="#d1fae5")
+        self.jobs_table.tag_configure("hybrid", background="#dbeafe")
+        self.jobs_table.tag_configure("onsite", background="#ffedd5")
 
         table_scroll_y = ttk.Scrollbar(table_wrap, orient=tk.VERTICAL, command=self.jobs_table.yview)
         table_scroll_y.grid(row=0, column=1, sticky="ns")
@@ -158,23 +326,44 @@ class LinkedInExtractorGUI:
         table_scroll_x.grid(row=1, column=0, sticky="ew")
         self.jobs_table.configure(yscrollcommand=table_scroll_y.set, xscrollcommand=table_scroll_x.set)
 
-        table_actions = ttk.Frame(table_wrap)
-        table_actions.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(6, 0))
+        table_actions = ttk.Frame(table_wrap, style="Card.TFrame")
+        table_actions.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(8, 0))
         ttk.Button(
             table_actions,
             text="Open visible apply URLs & remove those rows",
             command=self.on_open_visible_urls_and_remove,
+            style="Secondary.TButton",
         ).pack(side=tk.LEFT)
 
-        details_wrap = ttk.Frame(output_frame)
-        details_wrap.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(4, 8), pady=8)
+        paned.add(table_wrap, weight=5)
 
-        self.details_text = tk.Text(details_wrap, wrap=tk.WORD)
-        self.details_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        details_wrap = ttk.Frame(paned, style="Card.TFrame", padding=(4, 0, 0, 0))
+        details_wrap.columnconfigure(0, weight=1)
+        details_wrap.rowconfigure(1, weight=1)
+        ttk.Label(
+            details_wrap,
+            text="Selected row · JSON (double-click a row to open apply URL)",
+            style="CardHint.TLabel",
+        ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 6))
+
+        self.details_text = tk.Text(details_wrap, wrap=tk.WORD, **text_opts)
+        self.details_text.grid(row=1, column=0, sticky="nsew")
 
         details_scroll = ttk.Scrollbar(details_wrap, orient=tk.VERTICAL, command=self.details_text.yview)
-        details_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        details_scroll.grid(row=1, column=1, sticky="ns")
         self.details_text.config(yscrollcommand=details_scroll.set)
+
+        paned.add(details_wrap, weight=1)
+
+        def _position_main_sash():
+            try:
+                w = paned.winfo_width()
+                if w > 120:
+                    paned.sashpos(0, int(w * 0.82))
+            except tk.TclError:
+                pass
+
+        self.root.after(120, _position_main_sash)
 
     def on_clear(self):
         self.json_text.delete("1.0", tk.END)
