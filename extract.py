@@ -61,6 +61,22 @@ def infer_job_type(workplace_types, title, location, description):
     return "unknown"
 
 
+def linkedin_job_public_view_url(posting_id: str) -> str:
+    """Stable browser URL for a job posting (Easy Apply often uses /job-apply/… which errors when opened directly)."""
+    pid = str(posting_id or "").strip()
+    if not pid:
+        return ""
+    return f"https://www.linkedin.com/jobs/view/{pid}"
+
+
+def _stringify_apply_url(value) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, dict):
+        return str(value.get("url") or value.get("text") or "").strip()
+    return str(value).strip()
+
+
 def clean_location_text(value):
     text = str(value or "").strip()
     if not text:
@@ -202,7 +218,7 @@ def extract_jobs_from_data(data):
             "*applyJobActionResolutionResult",
         )
         app_detail = app_detail_by_urn.get(app_detail_urn, {}) if app_detail_urn else {}
-        apply_url = app_detail.get("companyApplyUrl") or ""
+        apply_url = _stringify_apply_url(app_detail.get("companyApplyUrl"))
         apply_cta = safe_get(app_detail, "applyCtaText", "text") or ""
         apply_accessibility = safe_get(app_detail, "applyCtaText", "accessibilityText") or ""
         onsite_apply = app_detail.get("onsiteApply")
@@ -222,6 +238,12 @@ def extract_jobs_from_data(data):
             apply_type = "unknown"
         else:
             apply_type = ""
+
+        # Internal (Easy Apply) uses linkedin.com/job-apply/… which is not a normal web page; use public job view.
+        if apply_type == "internal" and posting_id:
+            apply_url = linkedin_job_public_view_url(posting_id)
+        elif apply_url and posting_id and "linkedin.com/job-apply/" in apply_url.lower():
+            apply_url = linkedin_job_public_view_url(posting_id)
 
         # Optional extra fields
         location_urn = posting.get("*location")
